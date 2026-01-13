@@ -190,12 +190,41 @@ const AnnotationSchema = () => {
     throw new Error("no overlay");
   }
 
+  const _schema = {
+    type: "object",
+    view: { component: "ObjectView" },
+    properties: {
+      label: {
+        type: "string",
+        view: {
+          label: "label",
+          component: "DropdownView",
+          choices: [
+            { name: "Choice", label: "Bird", value: "bird" },
+            { name: "Choice", label: "Apple", value: "apple" },
+          ],
+        },
+      },
+      maskpath: {
+        type: "string",
+        view: { label: "maskPath", placeholder: "Enter name" },
+      },
+      bool1: {
+        type: "boolean",
+        view: { label: "bool1" },
+      },
+      tags: {
+        type: "array",
+        view: { label: "tags", component: "AutocompleteView" },
+      },
+    },
+  };
   return (
     <div>
       <SchemaIOComponent
         key={overlay.id}
         smartForm={true}
-        schema={schema}
+        schema={_schema}
         data={data}
         onChange={async (changes) => {
           const result = Object.fromEntries(
