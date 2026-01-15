@@ -22,6 +22,8 @@ from fiftyone.server import decorators, utils
 from fiftyone.server.utils.datasets import get_dataset, get_sample_from_dataset
 
 logger = logging.getLogger(__name__)
+# Ensure logger propagates to parent handlers
+logger.propagate = True
 
 
 def get_if_last_modified_at(
@@ -344,6 +346,7 @@ def handle_json_patch(target: Any, patch_list: List[dict]) -> Any:
             patch_list, transform_fn=utils.json.deserialize
         )
     except Exception as err:
+        logger.exception("Failed to parse patches", exc_info=True)
         raise HTTPException(
             status_code=400,
             detail=f"Failed to parse patches due to: {err}",
@@ -431,6 +434,9 @@ class Sample(HTTPEndpoint):
                     continue
 
                 sample[field_name] = utils.json.deserialize(value)
+                logger.info(sample)
+                
+                logger.info("sample[field_name]: %s", sample[field_name])
             except Exception as e:
                 errors[field_name] = str(e)
 

@@ -35,7 +35,11 @@ interface PrimitiveEditProps {
  */
 function processFieldValue(fieldValue: Primitive, type: string): Primitive {
   if (type === "date" || type === "datetime") {
-    return new Date(fieldValue as string).getTime();
+    return {
+      datetime: new Date(fieldValue as string).toISOString(),
+      ["_cls"]: "DateTimeField",
+      // ["_cfg"]: "datetime",
+    };
   }
   if (type !== "dict") {
     return fieldValue;

@@ -943,6 +943,8 @@ class DateTimeField(mongoengine.fields.DateTimeField, Field):
         if not isinstance(value, datetime):
             self.error("Datetime fields must have `datetime` values")
 
+    def from_dict(self, value):
+        return datetime.fromisoformat(value["datetime"])
 
 class FloatField(mongoengine.fields.FloatField, Field):
     """A floating point number field.

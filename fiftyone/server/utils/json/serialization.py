@@ -9,6 +9,8 @@ from typing import Any
 
 import fiftyone.core.labels as fol
 import fiftyone.core.sample as fos
+import fiftyone.core.fields as fof
+from fiftyone.core.singletons import fo
 
 
 def deserialize(value: Any) -> Any:
@@ -21,9 +23,12 @@ def deserialize(value: Any) -> Any:
         The deserialized value if able to deserialize, otherwise the input
         value.
     """
-
+    import logging
+    logger = logging.getLogger(__name__)
     if isinstance(value, dict):
+        logger.info("value: %s", value)
         if cls_name := value.get("_cls"):
+            logger.info("cls_name: %s", cls_name)
             cls = next(
                 (
                     cls
@@ -34,6 +39,7 @@ def deserialize(value: Any) -> Any:
                         fol.Detections,
                         fol.Polyline,
                         fol.Polylines,
+                        fof.DateTimeField,
                     )
                     if cls.__name__ == cls_name
                 ),
@@ -41,10 +47,11 @@ def deserialize(value: Any) -> Any:
             )
 
             if cls is None:
+                logger.info("cls is None")
                 raise ValueError(
                     f"No deserializer registered for class '{cls_name}'"
                 )
-
+            logger.info("cls 2: %s", cls)
             return cls.from_dict(value)
 
     return value

@@ -84,6 +84,9 @@ def parse(
 
             parsed.append(patch_cls(**kwargs))
         except Exception as err:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.exception("Error parsing patch", exc_info=True)
             raise ValueError(f"Invalid operation '{op_str}'") from err
 
     return parsed if not return_one else parsed[0]

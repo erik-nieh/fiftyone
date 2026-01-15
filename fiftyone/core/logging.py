@@ -51,7 +51,10 @@ def add_handlers(log_level):
     formatter = (
         JsonFormatter()
         if fo.config.logging_format == "json"
-        else logging.Formatter(fmt="%(message)s")
+        else logging.Formatter(
+            fmt="%(asctime)s [%(levelname)s] %(name)s:%(lineno)d - %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S"
+        )
     )
 
     loggers = _get_loggers()
