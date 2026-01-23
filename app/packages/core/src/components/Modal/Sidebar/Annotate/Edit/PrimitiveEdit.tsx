@@ -7,6 +7,7 @@ import {
   Button,
   DatePicker,
   Orientation,
+  Select,
   Stack,
   Variant,
 } from "@voxel51/voodo";
@@ -99,6 +100,45 @@ export default function PrimitiveEdit({
 
   return (
     <Stack orientation={Orientation.Column}>
+      <Select
+        exclusive
+        portal
+        onChange={() => {
+          console.log("onChange");
+        }}
+        options={[
+          {
+            data: {
+              label: "veniam non Lorem",
+            },
+            id: "w9yjexa",
+          },
+          {
+            data: {
+              label: "pariatur voluptate non",
+            },
+            id: "fyu4n0h",
+          },
+          {
+            data: {
+              label: "occaecat exercitation minim",
+            },
+            id: "irmkx84",
+          },
+          {
+            data: {
+              label: "et excepteur consequat",
+            },
+            id: "3353p76",
+          },
+          {
+            data: {
+              label: "id ut aliqua",
+            },
+            id: "hsfdnvb",
+          },
+        ]}
+      />
       {/* todo - schemaio component is not working correctly for dict fields */}
       {/* this works fine but ideally we should use the schemaio component for all fields */}
       {isJson ? (
