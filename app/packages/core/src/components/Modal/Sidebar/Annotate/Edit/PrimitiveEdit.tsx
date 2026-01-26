@@ -7,6 +7,7 @@ import {
   Button,
   DatePicker,
   Orientation,
+  Select,
   Stack,
   Variant,
 } from "@voxel51/voodo";
@@ -99,6 +100,42 @@ export default function PrimitiveEdit({
 
   return (
     <Stack orientation={Orientation.Column}>
+      <Select
+        onChange={function eV() {}}
+        options={[
+          {
+            data: {
+              label: "consectetur deserunt amet",
+            },
+            id: "8hqrx0e",
+          },
+          {
+            data: {
+              label: "anim incididunt proident",
+            },
+            id: "cs2usd9",
+          },
+          {
+            data: {
+              label: "id cillum aliquip",
+            },
+            id: "95pyz3v",
+          },
+          {
+            data: {
+              label: "enim do ut",
+            },
+            id: "rp059rd",
+          },
+          {
+            data: {
+              label: "minim nisi nulla",
+            },
+            id: "r82earo",
+          },
+        ]}
+        value={["8hqrx0e", "95pyz3v", "r82earo"]}
+      />
       {/* todo - schemaio component is not working correctly for dict fields */}
       {/* this works fine but ideally we should use the schemaio component for all fields */}
       {isJson ? (
