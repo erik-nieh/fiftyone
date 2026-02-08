@@ -1,6 +1,5 @@
 import { useUndoRedo } from "@fiftyone/commands";
 import { Tooltip } from "@fiftyone/components";
-import { useLighter } from "@fiftyone/lighter";
 import { use3dAnnotationFields } from "@fiftyone/looker-3d/src/annotation/use3dAnnotationFields";
 import {
   ANNOTATION_CUBOID,
@@ -17,7 +16,14 @@ import {
 } from "@fiftyone/utilities";
 import PolylineIcon from "@mui/icons-material/Timeline";
 import CuboidIcon from "@mui/icons-material/ViewInAr";
-import { Text, TextColor, TextVariant } from "@voxel51/voodo";
+import {
+  Button,
+  Size,
+  Text,
+  TextColor,
+  TextVariant,
+  Variant,
+} from "@voxel51/voodo";
 import { useSetAtom } from "jotai";
 import React, { useCallback } from "react";
 import { useRecoilState, useRecoilValue } from "recoil";
@@ -327,9 +333,9 @@ const Schema = () => {
   const showModal = useShowModal();
 
   return (
-    <RoundButton onClick={showModal}>
-      <Text variant={TextVariant.Lg}>Schema</Text>
-    </RoundButton>
+    <Button variant={Variant.Borderless} size={Size.Sm} onClick={showModal}>
+      Schema
+    </Button>
   );
 };
 
