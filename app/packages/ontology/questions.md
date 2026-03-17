@@ -5,6 +5,7 @@
     logical DSL
 -   Referencing other ontologies is not a requirement currently
 -   Decisions on versioning
+-   backwards compatibility
 
 ---
 
@@ -40,6 +41,7 @@ Summary of open questions for the ontology design. Each item has a short title
     persist ontology id on detections/fields?
 -   [Reuse label schema validation](#reuse-label-schema-validation) — Should
     ontology validation reuse existing label schema validators?
+-   Respecting dataset versioning
 
 ---
 
