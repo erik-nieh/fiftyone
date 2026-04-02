@@ -55,6 +55,7 @@ from .core.expressions import (
     ViewExpression,
     VALUE,
 )
+from .core.timeseries import TimeSeries, TimeSeriesChannel
 from .core.fields import (
     flatten_schema,
     ArrayField,

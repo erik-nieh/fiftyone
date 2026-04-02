@@ -16,6 +16,7 @@ import fiftyone.core.labels as fol
 import fiftyone.core.metadata as fom
 import fiftyone.core.media as fomm
 import fiftyone.core.odm as foo
+import fiftyone.core.timeseries as fots
 import fiftyone.core.utils as fou
 from fiftyone.core.singletons import SampleSingleton
 import logging
@@ -294,6 +295,81 @@ class _SampleMixin(object):
                 validate=validate,
                 dynamic=dynamic,
             )
+
+    # ------------------------------------------------------------------
+    # Time series linking
+    # ------------------------------------------------------------------
+
+    def link_timeseries(self, timeseries_name: str) -> None:
+        """Link this sample to a time series.
+
+        Args:
+            timeseries_name: the name of an existing time series
+        """
+        if not self._in_db:
+            raise ValueError("Sample must be in a dataset")
+
+        fots.TimeSeries.link_sample(self._id, timeseries_name)
+
+    def unlink_timeseries(self, timeseries_name: str) -> None:
+        """Remove the link between this sample and a time series.
+
+        Args:
+            timeseries_name: the time series name to unlink
+        """
+        if not self._in_db:
+            return
+
+        fots.TimeSeries.unlink_sample(self._id, timeseries_name)
+
+    def unlink_all_timeseries(self) -> None:
+        """Remove all time series links for this sample."""
+        if not self._in_db:
+            return
+
+        fots.TimeSeries.unlink_all_for_sample(self._id)
+
+    def get_timeseries_names(self) -> list:
+        """Get the names of all time series linked to this sample.
+
+        Returns:
+            a list of time series name strings
+        """
+        if not self._in_db:
+            return []
+
+        return fots.TimeSeries.get_timeseries_names_for_sample(self._id)
+
+    def get_timeseries(
+        self, timeseries_name: str, **kwargs
+    ) -> "fots.TimeSeries":
+        """Load a linked time series by name.
+
+        Args:
+            timeseries_name: the time series name
+            **kwargs: optional ``channels``, ``start``, ``end`` filters
+                passed to :meth:`TimeSeries.load`
+
+        Returns:
+            a :class:`fiftyone.core.timeseries.TimeSeries`
+        """
+        if not self._in_db:
+            raise ValueError("Sample must be in a dataset")
+
+        return fots.TimeSeries.load(timeseries_name, **kwargs)
+
+    def has_timeseries(self) -> bool:
+        """Whether this sample has any linked time series.
+
+        Returns:
+            True if at least one time series is linked
+        """
+        if not self._in_db:
+            return False
+
+        return (
+            len(fots.TimeSeries.get_timeseries_names_for_sample(self._id)) > 0
+        )
 
     def merge(
         self,
@@ -639,6 +715,7 @@ class Sample(_SampleMixin, Document, metaclass=SampleSingleton):
         if media_type is None:
             media_type = fomm.get_media_type(d.get("filepath", ""))
 
+        frames = {}
         if media_type == fomm.VIDEO:
             frames = d.pop("frames", {})
 
