@@ -1,5 +1,6 @@
 import { useTheme } from "@fiftyone/components/src/components/ThemeProvider";
 import { usePanelEvent } from "@fiftyone/operators";
+import { useFrameNumber } from "@fiftyone/playback";
 import { usePanelId } from "@fiftyone/spaces";
 import { Box } from "@mui/material";
 import { merge, snakeCase } from "lodash";
@@ -36,12 +37,31 @@ function getIdForTrace(
 export default function PlotlyView(props: ViewPropsType) {
   const { data, schema, path, relativeLayout } = props;
   const { view = {} } = schema;
-  const { config = {}, layout = {} } = view;
+  const { config = {}, layout = {}, timeline_sync } = view;
   const theme = useTheme();
   const panelId = usePanelId();
   let range = [0, 0];
   const triggerPanelEvent = usePanelEvent();
   const [revision, setRevision] = React.useState(0);
+
+  // Timeline sync: show a vertical line at the current video position
+  const frameNumber = useFrameNumber();
+  const timelineSyncShapes = useMemo(() => {
+    if (!timeline_sync || frameNumber <= 0) return [];
+    const fps = timeline_sync.fps || 30;
+    const currentTime = (frameNumber - 1) / fps;
+    return [
+      {
+        type: "line",
+        x0: currentTime,
+        x1: currentTime,
+        y0: 0,
+        y1: 1,
+        yref: "paper",
+        line: { color: "rgba(180, 180, 180, 0.7)", width: 1.5, dash: "dash" },
+      },
+    ];
+  }, [timeline_sync, frameNumber]);
 
   const handleEvent = (event?: string) => (e) => {
     const data = EventDataMappers[event]?.(e) || {};
@@ -195,8 +215,12 @@ export default function PlotlyView(props: ViewPropsType) {
   }, []);
 
   const mergedLayout = useMemo(() => {
-    return merge({}, layoutDefaults, layout);
-  }, [layoutDefaults, layout]);
+    const merged = merge({}, layoutDefaults, layout);
+    if (timelineSyncShapes.length > 0) {
+      merged.shapes = [...(merged.shapes || []), ...timelineSyncShapes];
+    }
+    return merged;
+  }, [layoutDefaults, layout, timelineSyncShapes]);
 
   const mergedConfig = useMemo(() => {
     return merge({}, configDefaults, config);

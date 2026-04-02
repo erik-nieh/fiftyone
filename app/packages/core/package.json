@@ -15,6 +15,7 @@
         "@fiftyone/looker": "*",
         "@fiftyone/map": "*",
         "@fiftyone/operators": "*",
+        "@fiftyone/playback": "*",
         "@fiftyone/spotlight": "*",
         "@fiftyone/state": "*",
         "@fiftyone/utilities": "*",

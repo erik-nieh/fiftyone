@@ -2097,14 +2097,18 @@ class PlotlyView(View):
         self.data = kwargs.get("data", None)
         self.config = kwargs.get("config", None)
         self.layout = kwargs.get("layout", None)
+        self.timeline_sync = kwargs.get("timeline_sync", None)
 
     def to_json(self):
-        return {
+        d = {
             **super().to_json(),
             "data": self.data,
             "config": self.config,
             "layout": self.layout,
         }
+        if self.timeline_sync is not None:
+            d["timeline_sync"] = self.timeline_sync
+        return d
 
 
 class Placement(object):

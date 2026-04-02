@@ -3,5 +3,5 @@ description: Time series visualization panel for FiftyOne
 version: 1.0.0
 fiftyone:
   version: "*"
-panels:
-  - timeseries_panel
+operators:
+  - get_timeseries_data

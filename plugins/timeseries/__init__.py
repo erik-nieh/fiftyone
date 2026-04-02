@@ -1,5 +1,8 @@
 """
-Time series visualization panel for FiftyOne.
+Time series visualization plugin for FiftyOne.
+
+Provides a GetTimeSeriesData operator that the JS panel component calls
+to fetch plotly traces for the current sample.
 
 | Copyright 2017-2026, Voxel51, Inc.
 | `voxel51.com <https://voxel51.com/>`_
@@ -7,69 +10,94 @@ Time series visualization panel for FiftyOne.
 """
 
 import logging
+from typing import Any
 
+import fiftyone as fo
+import fiftyone.operators as foo
 import fiftyone.operators.types as types
-from fiftyone.operators.categories import Categories
-from fiftyone.operators.panel import Panel, PanelConfig
 
 import fiftyone.core.timeseries as fots
 
 logger = logging.getLogger(__name__)
 
-# Max points per trace sent to the frontend
-_MAX_PLOT_POINTS = 500
+_MAX_PLOT_POINTS = 2000
 
 
-def _downsample(trace: dict) -> dict:
-    """Downsample a single Plotly trace if needed."""
-    x = trace.get("x", [])
-    y = trace.get("y", [])
-    if len(x) > _MAX_PLOT_POINTS:
-        step = max(1, len(x) // _MAX_PLOT_POINTS)
-        x = x[::step]
-        y = y[::step]
-    return {**trace, "x": x, "y": y}
+def _downsample(
+    timestamps: list[Any],
+    values: list[Any],
+    max_points: int = _MAX_PLOT_POINTS,
+) -> tuple[list[Any], list[Any]]:
+    """Downsample parallel lists if they exceed max_points."""
+    if len(timestamps) <= max_points:
+        return timestamps, values
+    step = max(1, len(timestamps) // max_points)
+    return timestamps[::step], values[::step]
 
 
-class TimeSeriesPanel(Panel):
+class GetTimeSeriesData(foo.Operator):
     @property
     def config(self):
-        return PanelConfig(
-            name="timeseries_panel",
-            label="Time Series",
-            icon="timeline",
-            category=Categories.ANALYZE,
-            surfaces="grid modal",
+        return foo.OperatorConfig(
+            name="get_timeseries_data",
+            label="Get Time Series Data",
+            unlisted=True,
         )
 
-    def render(self, ctx):
-        panel = types.Object()
+    def resolve_input(self, ctx):
+        inputs = types.Object()
+        inputs.str("sample_id", required=True)
+        return types.Property(inputs)
 
-        data = []
-        layout = {}
+    def execute(self, ctx):
+        sample_id = ctx.params.get("sample_id")
+        if not sample_id:
+            return {"traces": [], "ts_name": "", "fps": 0}
 
-        sample_id = ctx.current_sample
-        if sample_id:
+        try:
+            from bson import ObjectId
+
+            sid = ObjectId(sample_id)
+            ts_names = fots.TimeSeries.get_timeseries_names_for_sample(sid)
+
+            if not ts_names:
+                return {"traces": [], "ts_name": "No time series", "fps": 0}
+
+            ts = fots.TimeSeries.load(ts_names[0])
+            plotly_fig = ts.to_plotly()
+
+            traces: list[dict[str, Any]] = []
+            for t in plotly_fig["data"]:
+                x, y = _downsample(t.get("x", []), t.get("y", []))
+                traces.append({"x": x, "y": y, "name": t.get("name", "")})
+
+            # Get FPS from sample metadata
+            fps: float = 0
             try:
-                from bson import ObjectId
+                dataset = ctx.dataset
+                if dataset:
+                    sample = dataset[sid]
+                    if (
+                        sample.metadata
+                        and hasattr(sample.metadata, "frame_rate")
+                        and sample.metadata.frame_rate
+                    ):
+                        fps = sample.metadata.frame_rate
+            except Exception:
+                pass
 
-                sid = ObjectId(sample_id)
-                ts_names = fots.TimeSeries.get_timeseries_names_for_sample(sid)
+            # Push data into panel state so JS can read it
+            if ctx.panel:
+                ctx.panel.state.traces = traces
+                ctx.panel.state.ts_name = ts_names[0]
+                ctx.panel.state.fps = fps
 
-                if ts_names:
-                    ts = fots.TimeSeries.load(ts_names[0])
-                    plotly = ts.to_plotly()
-                    data = [_downsample(t) for t in plotly["data"]]
-                    layout = plotly["layout"]
-                    layout["title"] = ts_names[0]
-            except Exception as e:
-                logger.error("[TS] render error: %s", e, exc_info=True)
-                layout = {"title": f"Error: {e}"}
+            return {"traces": traces, "ts_name": ts_names[0], "fps": fps}
 
-        panel.plot("plot", data=data, layout=layout)
-
-        return types.Property(panel)
+        except Exception as e:
+            logger.error("[TS] error: %s", e, exc_info=True)
+            return {"traces": [], "ts_name": f"Error: {e}", "fps": 0}
 
 
 def register(p):
-    p.register(TimeSeriesPanel)
+    p.register(GetTimeSeriesData)
