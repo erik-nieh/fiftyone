@@ -57,6 +57,26 @@ def _data_collection_name(name: str) -> str:
     return f"ts.{name}"
 
 
+def _docs_for_channel(ch: "TimeSeriesChannel") -> List[dict]:
+    """Build Mongo insert documents for one channel.
+
+    Uses vectorized float-seconds → UTC ``datetime`` conversion so large
+    saves avoid a per-point Python loop (see :meth:`TimeSeries.save`).
+    """
+    if len(ch) == 0:
+        return []
+
+    import pandas as pd
+
+    dts = pd.to_datetime(ch.timestamps, unit="s", utc=True).to_pydatetime()
+    ch_name = ch.name
+    vals = ch.values
+    return [
+        {"timestamp": t, "meta": {"channel": ch_name}, "value": float(v)}
+        for t, v in zip(dts, vals)
+    ]
+
+
 def _ensure_registry(
     db: pymongo.database.Database,
 ) -> pymongo.collection.Collection:
@@ -223,12 +243,23 @@ class TimeSeries:
         self.save()
 
     @classmethod
-    def _from_channels(
+    def from_channels(
         cls,
         name: str,
         channels: Dict[str, TimeSeriesChannel],
     ) -> "TimeSeries":
-        """Internal constructor that skips save (for load/query/from_csv)."""
+        """Build a time series from channel objects without persisting.
+
+        Unlike :meth:`__init__`, this does not call :meth:`save`. Call
+        :meth:`save` if you want to write to MongoDB.
+
+        Args:
+            name: unique name for this time series
+            channels: mapping of names to :class:`TimeSeriesChannel`
+
+        Returns:
+            a :class:`TimeSeries`
+        """
         instance = cls.__new__(cls)
         instance._name = name
         instance._channels = channels
@@ -344,7 +375,7 @@ class TimeSeries:
                 np.array(values_dict[col], dtype=np.float64),
             )
 
-        ts = cls._from_channels(name=name, channels=channels)
+        ts = cls.from_channels(name=name, channels=channels)
         ts.save()
         return ts
 
@@ -466,9 +497,7 @@ class TimeSeries:
         for ch_name in channels:
             new_channels[ch_name] = self._channels[ch_name].query(start, end)
 
-        return TimeSeries._from_channels(
-            name=self._name, channels=new_channels
-        )
+        return TimeSeries.from_channels(name=self._name, channels=new_channels)
 
     # ------------------------------------------------------------------
     # MongoDB persistence
@@ -498,22 +527,15 @@ class TimeSeries:
             upsert=True,
         )
 
-        # Write data
+        # Write data: drop + recreate is much faster than delete_many for
+        # large series (avoids per-document tombstones / large deletes).
+        if coll_name in db.list_collection_names():
+            db.drop_collection(coll_name)
         data_coll = _ensure_data_collection(db, coll_name)
-        data_coll.delete_many({})  # full replace
 
-        docs = []
+        docs: List[dict] = []
         for ch in self._channels.values():
-            for i in range(len(ch)):
-                docs.append(
-                    {
-                        "timestamp": _seconds_to_datetime(
-                            float(ch.timestamps[i])
-                        ),
-                        "meta": {"channel": ch.name},
-                        "value": float(ch.values[i]),
-                    }
-                )
+            docs.extend(_docs_for_channel(ch))
 
         if docs:
             data_coll.insert_many(docs, ordered=False)
@@ -579,7 +601,7 @@ class TimeSeries:
                 np.array(vals, dtype=np.float64),
             )
 
-        return cls._from_channels(name=name, channels=loaded_channels)
+        return cls.from_channels(name=name, channels=loaded_channels)
 
     @classmethod
     def exists(cls, name: str) -> bool:

@@ -1,5 +1,6 @@
 
 **/*.DS_store
+data/timeseries_demo/*.mp4
 .vscode
 node_modules
 
