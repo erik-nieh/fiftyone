@@ -86,13 +86,30 @@ class GetTimeSeriesData(foo.Operator):
             except Exception:
                 pass
 
+            # Detect if traces need separate y-axes (ranges differ by >10x)
+            separate_axes = False
+            if len(traces) > 1:
+                ranges = []
+                for t in traces:
+                    ys = [v for v in t["y"] if v is not None]
+                    if ys:
+                        ranges.append(max(ys) - min(ys))
+                if ranges and min(ranges) > 0:
+                    separate_axes = max(ranges) / min(ranges) > 10
+
             # Push data into panel state so JS can read it
             if ctx.panel:
                 ctx.panel.state.traces = traces
                 ctx.panel.state.ts_name = ts_names[0]
                 ctx.panel.state.fps = fps
+                ctx.panel.state.separate_axes = separate_axes
 
-            return {"traces": traces, "ts_name": ts_names[0], "fps": fps}
+            return {
+                "traces": traces,
+                "ts_name": ts_names[0],
+                "fps": fps,
+                "separate_axes": separate_axes,
+            }
 
         except Exception as e:
             logger.error("[TS] error: %s", e, exc_info=True)

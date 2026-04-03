@@ -263523,67 +263523,142 @@ uniform ${i3} ${a3} u_${s3};
     const traces = state$1.traces || [];
     const fps = state$1.fps || 7.74;
     const tsName = state$1.ts_name || "Time Series";
+    const separateAxes = state$1.separate_axes || false;
     const currentTime = frameNumber > 0 ? (frameNumber - 1) / fps : null;
     const plotData = React.useMemo(() => {
-      return traces.map((t) => ({
+      if (!separateAxes) {
+        return traces.map((t) => ({
+          x: t.x,
+          y: t.y,
+          type: "scatter",
+          mode: "lines",
+          name: t.name
+        }));
+      }
+      return traces.map((t, i) => ({
         x: t.x,
         y: t.y,
         type: "scatter",
         mode: "lines",
-        name: t.name
+        name: t.name,
+        xaxis: i === 0 ? "x" : `x${i + 1}`,
+        yaxis: i === 0 ? "y" : `y${i + 1}`
       }));
-    }, [traces]);
+    }, [traces, separateAxes]);
     const layout = React.useMemo(() => {
-      var _a2, _b, _c, _d, _e, _f, _g, _h;
-      const shapes = [];
-      if (currentTime !== null && traces.length > 0) {
-        shapes.push({
-          type: "line",
-          x0: currentTime,
-          x1: currentTime,
-          y0: 0,
-          y1: 1,
-          yref: "paper",
-          line: {
-            color: "#ccff00",
-            width: 2,
-            dash: "dot"
-          }
-        });
+      var _a2, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
+      const axisBase = {
+        showgrid: true,
+        color: (_a2 = theme == null ? void 0 : theme.text) == null ? void 0 : _a2.secondary,
+        gridcolor: (_b = theme == null ? void 0 : theme.primary) == null ? void 0 : _b.softBorder
+      };
+      const playheadLine = {
+        color: "#ccff00",
+        width: 2,
+        dash: "dot"
+      };
+      if (!separateAxes) {
+        const shapes2 = [];
+        if (currentTime !== null && traces.length > 0) {
+          shapes2.push({
+            type: "line",
+            x0: currentTime,
+            x1: currentTime,
+            y0: 0,
+            y1: 1,
+            yref: "paper",
+            line: playheadLine
+          });
+        }
+        return {
+          shapes: shapes2,
+          title: tsName,
+          font: {
+            family: "var(--fo-fontFamily-body)",
+            size: 14,
+            color: (_c = theme == null ? void 0 : theme.text) == null ? void 0 : _c.secondary
+          },
+          xaxis: { ...axisBase, title: "Time (s)" },
+          yaxis: { ...axisBase, title: "" },
+          showlegend: traces.length > 1,
+          legend: {
+            x: 1,
+            y: 1,
+            bgcolor: "rgba(0,0,0,0)",
+            font: { color: (_d = theme == null ? void 0 : theme.text) == null ? void 0 : _d.secondary }
+          },
+          autosize: true,
+          margin: { l: 50, r: 20, t: 40, b: 50 },
+          paper_bgcolor: (_e = theme == null ? void 0 : theme.background) == null ? void 0 : _e.mediaSpace,
+          plot_bgcolor: (_f = theme == null ? void 0 : theme.background) == null ? void 0 : _f.mediaSpace
+        };
       }
-      return {
-        shapes,
+      const n = traces.length;
+      const gap = 0.08;
+      const totalGap = gap * (n - 1);
+      const plotHeight = (1 - totalGap) / n;
+      const shapes = [];
+      const annotations = [];
+      const layoutObj = {
         title: tsName,
         font: {
           family: "var(--fo-fontFamily-body)",
           size: 14,
-          color: (_a2 = theme == null ? void 0 : theme.text) == null ? void 0 : _a2.secondary
+          color: (_g = theme == null ? void 0 : theme.text) == null ? void 0 : _g.secondary
         },
-        xaxis: {
-          title: "Time (s)",
-          showgrid: true,
-          color: (_b = theme == null ? void 0 : theme.text) == null ? void 0 : _b.secondary,
-          gridcolor: (_c = theme == null ? void 0 : theme.primary) == null ? void 0 : _c.softBorder
-        },
-        yaxis: {
-          title: "°C",
-          showgrid: true,
-          color: (_d = theme == null ? void 0 : theme.text) == null ? void 0 : _d.secondary,
-          gridcolor: (_e = theme == null ? void 0 : theme.primary) == null ? void 0 : _e.softBorder
-        },
-        showlegend: traces.length > 1,
-        legend: {
-          x: 1,
-          y: 1,
-          bgcolor: "rgba(0,0,0,0)",
-          font: { color: (_f = theme == null ? void 0 : theme.text) == null ? void 0 : _f.secondary }
-        },
+        showlegend: false,
         autosize: true,
-        margin: { l: 50, r: 20, t: 40, b: 50 },
-        paper_bgcolor: (_g = theme == null ? void 0 : theme.background) == null ? void 0 : _g.mediaSpace,
-        plot_bgcolor: (_h = theme == null ? void 0 : theme.background) == null ? void 0 : _h.mediaSpace
+        margin: { l: 60, r: 20, t: 40, b: 50 },
+        paper_bgcolor: (_h = theme == null ? void 0 : theme.background) == null ? void 0 : _h.mediaSpace,
+        plot_bgcolor: (_i = theme == null ? void 0 : theme.background) == null ? void 0 : _i.mediaSpace
       };
-    }, [currentTime, traces, tsName, theme]);
+      for (let i = 0; i < n; i++) {
+        const bottom = 1 - (i + 1) * plotHeight - i * gap;
+        const top = 1 - i * plotHeight - i * gap;
+        const xKey = i === 0 ? "xaxis" : `xaxis${i + 1}`;
+        const yKey = i === 0 ? "yaxis" : `yaxis${i + 1}`;
+        layoutObj[xKey] = {
+          ...axisBase,
+          anchor: i === 0 ? "y" : `y${i + 1}`,
+          title: i === n - 1 ? "Time (s)" : "",
+          showticklabels: i === n - 1
+        };
+        layoutObj[yKey] = {
+          ...axisBase,
+          domain: [bottom, top],
+          title: ""
+        };
+        annotations.push({
+          text: ((_j = traces[i]) == null ? void 0 : _j.name) || "",
+          xref: "paper",
+          yref: "paper",
+          x: 0,
+          y: top,
+          xanchor: "left",
+          yanchor: "bottom",
+          showarrow: false,
+          font: {
+            size: 12,
+            color: (_k = theme == null ? void 0 : theme.text) == null ? void 0 : _k.secondary
+          }
+        });
+        if (currentTime !== null) {
+          shapes.push({
+            type: "line",
+            x0: currentTime,
+            x1: currentTime,
+            y0: bottom,
+            y1: top,
+            yref: "paper",
+            xref: i === 0 ? "x" : `x${i + 1}`,
+            line: playheadLine
+          });
+        }
+      }
+      layoutObj.shapes = shapes;
+      layoutObj.annotations = annotations;
+      return layoutObj;
+    }, [currentTime, traces, tsName, theme, separateAxes]);
     if (traces.length === 0) {
       return /* @__PURE__ */ React.createElement(
         "div",
