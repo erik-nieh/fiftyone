@@ -77,6 +77,16 @@ class Ontology(abc.ABC):
 
         return None
 
+    @property
+    def is_annotation_ontology(self) -> bool:
+        """Whether this ontology is an annotation ontology."""
+        return self._TYPE == OntologyType.ANNOTATION_ONTOLOGY.value
+
+    @property
+    def is_taxonomy(self) -> bool:
+        """Whether this ontology is a taxonomy."""
+        return self._TYPE == OntologyType.TAXONOMY.value
+
     def save(self) -> None:
         """Saves this ontology to the database."""
         if self._doc is None:
