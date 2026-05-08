@@ -34,7 +34,6 @@ def validate_annotation_ontology(ontology: AnnotationOntology) -> None:
     # `Taxonomy` documents; validate that each `ontology.taxonomies` name
     # resolves to a `Taxonomy` in the DB once the type exists.
     errors: list[str] = [
-        *_validate_unique_attribute_names(ontology),
         *_validate_when_operators(ontology),
         *_validate_types(ontology),
         *_validate_components(ontology),
@@ -49,21 +48,6 @@ def validate_annotation_ontology(ontology: AnnotationOntology) -> None:
         )
 
 
-def _validate_unique_attribute_names(
-    ontology: AnnotationOntology,
-) -> list[str]:
-    seen: set[str] = set()
-    duplicates: set[str] = set()
-    for attr in ontology.attributes:
-        if attr.name in seen:
-            duplicates.add(attr.name)
-        seen.add(attr.name)
-
-    if duplicates:
-        return [f"duplicate attribute name(s): {sorted(duplicates)}"]
-    return []
-
-
 def _validate_when_operators(ontology: AnnotationOntology) -> list[str]:
     """Safety net for ``When.operator`` — ``When.__post_init__`` rejects
     invalid operators at construction, so this only catches values
@@ -76,7 +60,10 @@ def _validate_when_operators(ontology: AnnotationOntology) -> list[str]:
         for w in attr.when:
             try:
                 WhenOperator(w.operator)
-            except ValueError:
+            except (ValueError, TypeError):
+                # ``WhenOperator(unhashable)`` (e.g. a list) raises
+                # ``TypeError`` from the enum's value lookup; treat it
+                # the same as any other invalid operator value.
                 errors.append(
                     f"attribute {attr.name!r}: invalid When.operator "
                     f"{w.operator!r}"
@@ -140,11 +127,17 @@ def _validate_then_keys(ontology: AnnotationOntology) -> list[str]:
 
 
 def _validate_no_cycles(ontology: AnnotationOntology) -> list[str]:
-    """Reject cycles in the When graph (internal refs only)."""
-    graph: dict[str, list[str]] = {
-        attr.name: [w.field for w in (attr.when or [])]
-        for attr in ontology.attributes
-    }
+    """Reject cycles in the When graph (internal refs only).
+
+    Same-name attributes (multi-variant pattern) accumulate their
+    ``When.field`` edges under a single key — using a dict comprehension
+    here would let later variants overwrite earlier ones and silently
+    drop their edges from the cycle graph.
+    """
+    graph: dict[str, list[str]] = {}
+    for attr in ontology.attributes:
+        edges = [w.field for w in (attr.when or [])]
+        graph.setdefault(attr.name, []).extend(edges)
     errors: list[str] = []
     for start in graph:
         to_visit = list(graph[start])

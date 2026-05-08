@@ -6,6 +6,7 @@ import {
   useNotification,
   useQueryPerformanceSampleLimit,
 } from "@fiftyone/state";
+import { getFetchFunction } from "@fiftyone/utilities";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { isEqual } from "lodash";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -26,7 +27,7 @@ import {
   useSchemaManagerEventBus,
 } from "../events";
 import { currentLabelSchema } from "../state";
-import { reconcileComponent } from "../utils";
+import { type AttributeConfig, reconcileComponent } from "../utils";
 
 // =============================================================================
 // Internal Hooks
@@ -122,19 +123,52 @@ export const useAppliedOntology = (field: string) => {
   const schema = current as FieldSchema | undefined;
 
   const ontologyAttributes: string[] = Array.isArray(schema?.attributes)
-    ? (schema.attributes as { name?: string; _source?: unknown }[]).reduce<
-        string[]
-      >((acc, a) => {
-        if (a && "_source" in a && a._source && a.name) acc.push(a.name);
-        return acc;
-      }, [])
+    ? (schema.attributes as Partial<AttributeConfig>[]).reduce<string[]>(
+        (acc, a) => {
+          if (a._source && a.name) acc.push(a.name);
+          return acc;
+        },
+        []
+      )
     : [];
 
   return {
     appliedOntology: schema?.applied_ontology,
     ontologyAttributes,
     applyOntology: (name: string) => {
-      setCurrent({ ...(schema as FieldSchema), applied_ontology: name });
+      const draft = { ...(schema as FieldSchema), applied_ontology: name };
+      setCurrent(draft);
+
+      getFetchFunction()(
+        "GET",
+        `/ontologies/${encodeURIComponent(name)}/attributes`
+      )
+        .then((result) => {
+          // Merge ontology attributes into the schema
+          const attrs = (result as { attributes: Record<string, unknown>[] })
+            .attributes;
+          if (!attrs?.length) return;
+
+          const existing = Array.isArray(draft.attributes)
+            ? ([...draft.attributes] as Record<string, unknown>[])
+            : [];
+          const byName = new Map(existing.map((a) => [a.name, a]));
+          const orderedNames = existing.map((a) => a.name as string);
+
+          for (const attr of attrs) {
+            const attrName = attr.name as string;
+            if (!byName.has(attrName)) orderedNames.push(attrName);
+            byName.set(attrName, attr);
+          }
+
+          setCurrent({
+            ...draft,
+            attributes: orderedNames.map((n) => byName.get(n)),
+          });
+        })
+        .catch(() => {
+          // Preview failed — name is already set, attributes will hydrate on save
+        });
     },
     clearOntology: () => {
       const next: FieldSchema = { ...(schema as FieldSchema) };
@@ -185,7 +219,7 @@ const useSave = (field: string, visibilityChanged: boolean) => {
   const removeFromActive = useSetAtom(removeFromActiveSchemas);
   const activeSchemas = useAtomValue(activeLabelSchemas);
   const notify = useNotification();
-  const [current] = useCurrentLabelSchema(field);
+  const [current, setCurrent] = useCurrentLabelSchema(field);
   const setCurrentField = useSetAtom(currentField);
   const { dispatch } = useSchemaManagerEventBus();
 
@@ -197,11 +231,13 @@ const useSave = (field: string, visibilityChanged: boolean) => {
 
       const labelSchema = current ? reconcileComponent(current) : current;
 
+      let hydrated: unknown;
       try {
-        await updateSchema({
+        const response = await updateSchema({
           field,
           label_schema: labelSchema,
         } as UpdateSchemaRequest);
+        hydrated = response.label_schema;
       } catch (error) {
         console.error("Failed to save label schema:", error);
         setIsSaving(false);
@@ -209,7 +245,9 @@ const useSave = (field: string, visibilityChanged: boolean) => {
         return;
       }
 
-      setSaved(current);
+      const resolved = hydrated ?? current;
+      setSaved(resolved);
+      setCurrent(resolved);
       setIsSaving(false);
       dispatchSchemaManagerEvent(dispatch, "schema-manager:save-complete");
 

@@ -6,7 +6,11 @@ FiftyOne annotation ontology validation unit tests.
 |
 """
 
+import os
 import unittest
+
+# Ontology SDK is gated by VFF_ONTOLOGY_CA; enable for the whole module.
+os.environ.setdefault("VFF_ONTOLOGY_CA", "1")
 
 from fiftyone.core.annotation.attributes import (
     AttributeSpec,
@@ -15,26 +19,6 @@ from fiftyone.core.annotation.attributes import (
 )
 from fiftyone.core.ontology import AnnotationOntology
 from fiftyone.core.ontology_validation import validate_annotation_ontology
-
-
-class UniqueAttributeNamesTests(unittest.TestCase):
-    def test_rejects_duplicate_names(self):
-        ao = AnnotationOntology(
-            name="test",
-            attributes=[
-                AttributeSpec(name="damage", type="str", component="dropdown"),
-                AttributeSpec(
-                    name="damage", type="bool", component="checkbox"
-                ),
-            ],
-        )
-        with self.assertRaises(ValueError) as cm:
-            validate_annotation_ontology(ao)
-        self.assertIn("damage", str(cm.exception))
-
-    def test_accepts_empty_attributes(self):
-        ao = AnnotationOntology(name="empty")
-        validate_annotation_ontology(ao)
 
 
 class OperatorValidTests(unittest.TestCase):
@@ -107,6 +91,36 @@ class NoCyclesTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_annotation_ontology(ao)
 
+    def test_rejects_cycle_through_overwritten_variant(self):
+        # A multi-variant attribute (same `name`, different `when`)
+        # used to lose its edges when a later same-name variant
+        # overwrote it in the cycle graph. The edges from every variant
+        # must contribute, otherwise a cycle through the dropped variant
+        # goes silently unreported.
+        ao = AnnotationOntology(
+            name="test",
+            attributes=[
+                AttributeSpec(
+                    name="a",
+                    type="str",
+                    component="dropdown",
+                    when=[When(WhenOperator.EQUALS, field="b", value="x")],
+                ),
+                # Same-name variant with no `when` — would have erased
+                # the cyclic edge from the first variant under the old
+                # graph-build code.
+                AttributeSpec(name="a", type="str", component="dropdown"),
+                AttributeSpec(
+                    name="b",
+                    type="str",
+                    component="dropdown",
+                    when=[When(WhenOperator.EQUALS, field="a", value="y")],
+                ),
+            ],
+        )
+        with self.assertRaises(ValueError):
+            validate_annotation_ontology(ao)
+
 
 class ThenKeysValidTests(unittest.TestCase):
     def test_rejects_then_with_disallowed_key(self):
@@ -130,6 +144,31 @@ class ThenKeysValidTests(unittest.TestCase):
         )
         with self.assertRaises(ValueError):
             validate_annotation_ontology(ao)
+
+
+class SaveInvokesValidationTests(unittest.TestCase):
+    def test_save_invokes_validation(self):
+        # Auto-validate hook in Ontology.save() — invalid ontologies
+        # raise before any DB interaction.
+        ao = AnnotationOntology(
+            name="bad",
+            attributes=[
+                AttributeSpec(
+                    name="a",
+                    type="str",
+                    component="dropdown",
+                    when=[When(WhenOperator.EQUALS, field="b", value="x")],
+                ),
+                AttributeSpec(
+                    name="b",
+                    type="str",
+                    component="dropdown",
+                    when=[When(WhenOperator.EQUALS, field="a", value="y")],
+                ),
+            ],
+        )
+        with self.assertRaises(ValueError):
+            ao.save()
 
 
 if __name__ == "__main__":
